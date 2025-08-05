@@ -50,6 +50,8 @@ import com.veracode.verademo.model.Blabber;
 import com.veracode.verademo.utils.Constants;
 import com.veracode.verademo.utils.User;
 import com.veracode.verademo.utils.UserFactory;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.text.StringEscapeUtils;
 
 /**
  * @author johnadmin
@@ -149,22 +151,21 @@ public class UserController {
 		}
 
 		Connection connect = null;
-		Statement sqlStatement = null;
-
+		PreparedStatement sqlStatement = null;
 		try {
-			// Get the Database Connection
-			logger.info("Creating the Database connection");
-			Class.forName("com.mysql.jdbc.Driver");
-			connect = DriverManager.getConnection(Constants.create().getJdbcConnectionString());
-
-			/* START BAD CODE */
-			// Execute the query
-			logger.info("Creating the Statement");
-			String sqlQuery = "select username, password, password_hint, created_at, last_login, real_name, blab_name from users where username='"
-					+ username + "' and password='" + md5(password) + "';";
-			sqlStatement = connect.createStatement();
-			logger.info("Execute the Statement");
-			ResultSet result = sqlStatement.executeQuery(sqlQuery);
+		    // Get the Database Connection
+		    logger.info("Creating the Database connection");
+		    Class.forName("com.mysql.jdbc.Driver");
+		    connect = DriverManager.getConnection(Constants.create().getJdbcConnectionString());
+		    /* START BAD CODE */
+		    // Execute the query
+		    logger.info("Creating the Statement");
+		    String sqlQuery = "select username, password, password_hint, created_at, last_login, real_name, blab_name from users where username='"
+		    + username + "' and password=?;";
+		    sqlStatement = connect.prepareStatement(sqlQuery);
+		    sqlStatement.setString(1, md5(password));
+		    logger.info("Execute the Statement");
+		    ResultSet result = sqlStatement.executeQuery();
 			/* END BAD CODE */
 
 			// Did we find exactly 1 user that matched?
@@ -227,7 +228,7 @@ public class UserController {
 		}
 
 		// Redirect to the appropriate place based on login actions above
-		logger.info("Redirecting to view: " + nextView);
+		logger.info("Redirecting to view: " + StringUtils.normalizeSpace(nextView));
 		return nextView;
 	}
 
@@ -235,25 +236,23 @@ public class UserController {
 	@ResponseBody
 	public String showPasswordHint(String username)
 	{
-		logger.info("Entering password-hint with username: " + username);
-
-		if (username == null || username.isEmpty()) {
-			return "No username provided, please type in your username first";
-		}
-
-		try {
-			Class.forName("com.mysql.jdbc.Driver");
-
-			Connection connect = DriverManager.getConnection(Constants.create().getJdbcConnectionString());
-
-			String sql = "SELECT password_hint FROM users WHERE username = '" + username + "'";
-			logger.info(sql);
-			Statement statement = connect.createStatement();
-			ResultSet result = statement.executeQuery(sql);
+		logger.info("Entering password-hint with username: " + StringUtils.normalizeSpace(username));
+		    if (username == null || username.isEmpty()) {
+		        return "No username provided, please type in your username first";
+		    }
+		    try
+		    {
+		        Class.forName("com.mysql.jdbc.Driver");
+		        Connection connect = DriverManager.getConnection(Constants.create().getJdbcConnectionString());
+		        String sql = "SELECT password_hint FROM users WHERE username =?";
+		        logger.info(sql);
+		        PreparedStatement prepStmt = connect.prepareStatement(sql);
+		        prepStmt.setString(1, username);
+		        ResultSet result = prepStmt.executeQuery();
 			if (result.first()) {
 				String password= result.getString("password_hint");
 				String formatString = "Username '" + username + "' has password: %.2s%s";
-				logger.info(formatString);
+				logger.info(StringUtils.normalizeSpace(formatString));
 				return String.format(
 						formatString,
 						password,
@@ -313,8 +312,9 @@ public class UserController {
 			Connection connect = DriverManager.getConnection(Constants.create().getJdbcConnectionString());
 
 			String sql = "SELECT username FROM users WHERE username = '" + username + "'";
-			Statement statement = connect.createStatement();
-			ResultSet result = statement.executeQuery(sql);
+			PreparedStatement statement = connect.prepareStatement("SELECT username FROM users WHERE username =?");
+			statement.setInt(1, username);
+			ResultSet result = statement.executeQuery();
 			if (result.first()) {
 				model.addAttribute("error", "Username '" + username + "' already exists!");
 				return "register";
@@ -361,29 +361,26 @@ public class UserController {
 
 		Connection connect = null;
 		Statement sqlStatement = null;
-
 		try {
-			// Get the Database Connection
-			logger.info("Creating the Database connection");
-			Class.forName("com.mysql.jdbc.Driver");
-			connect = DriverManager.getConnection(Constants.create().getJdbcConnectionString());
-
-			/* START BAD CODE */
-			// Execute the query
-			String mysqlCurrentDateTime = (new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"))
-					.format(Calendar.getInstance().getTime());
-			StringBuilder query = new StringBuilder();
-			query.append("insert into users (username, password, created_at, real_name, blab_name) values(");
-			query.append("'" + username + "',");
-			query.append("'" + password + "',");
-			query.append("'" + mysqlCurrentDateTime + "',");
-			query.append("'" + realName + "',");
-			query.append("'" + blabName + "'");
-			query.append(");");
-
-			sqlStatement = connect.createStatement();
-			sqlStatement.execute(query.toString());
-			logger.info(query.toString());
+		    // Get the Database Connection
+		    logger.info("Creating the Database connection");
+		    Class.forName("com.mysql.jdbc.Driver");
+		    connect = DriverManager.getConnection(Constants.create().getJdbcConnectionString());
+		    /* START BAD CODE */
+		    // Execute the query
+		    String mysqlCurrentDateTime = (new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"))
+		    .format(Calendar.getInstance().getTime());
+		    StringBuilder query = new StringBuilder();
+		    query.append("insert into users (username, password, created_at) values(");
+		    query.append("'" + username + "', ");
+		    query.append("'" + password + "', ");
+		    query.append("'" + mysqlCurrentDateTime + "'");
+		    query.append(");");
+		    sqlStatement = connect.prepareStatement(query.toString());
+		    sqlStatement.setString(1, username);
+		    sqlStatement.setString(2, password);
+		    sqlStatement.execute();
+			logger.info(StringUtils.normalizeSpace(query.toString()));
 			/* END BAD CODE */
 
 			emailUser(username);
@@ -491,9 +488,10 @@ public class UserController {
 			/* START BAD CODE */
 			String sqlMyEvents = "select event from users_history where blabber=\"" + username
 					+ "\" ORDER BY eventid DESC; ";
-			logger.info(sqlMyEvents);
-			Statement sqlStatement = connect.createStatement();
-			ResultSet userHistoryResult = sqlStatement.executeQuery(sqlMyEvents);
+			logger.info(StringUtils.normalizeSpace(sqlMyEvents));
+			PreparedStatement sqlStatement = connect.prepareStatement("select event from users_history where blabber=? ORDER BY eventid DESC;");
+			sqlStatement.setString(1, username);
+			ResultSet userHistoryResult = sqlStatement.executeQuery();
 			/* END BAD CODE */
 
 			while (userHistoryResult.next()) {
@@ -501,9 +499,10 @@ public class UserController {
 			}
 
 			// Get the users information
-			String sql = "SELECT username, real_name, blab_name FROM users WHERE username = '" + username + "'";
-			logger.info(sql);
+			String sql = "SELECT username, real_name, blab_name FROM users WHERE username =?";
+			logger.info(StringEscapeUtils.escapeJava(sql));
 			myInfo = connect.prepareStatement(sql);
+			myInfo.setString(1, username);
 			ResultSet myInfoResults = myInfo.executeQuery();
 			myInfoResults.next();
 
@@ -656,7 +655,7 @@ public class UserController {
 				String extension = file.getOriginalFilename().substring(file.getOriginalFilename().lastIndexOf("."));
 				String path = imageDir + username + extension;
 
-				logger.info("Saving new profile image: " + path);
+				logger.info("Saving new profile image: " + StringUtils.normalizeSpace(path));
 
 				file.transferTo(new File(path)); // will delete any existing file first
 			}
@@ -692,7 +691,7 @@ public class UserController {
 
 		String path = context.getRealPath("/resources/images") + File.separator + imageName;
 
-		logger.info("Fetching profile image: " + path);
+		logger.info("Fetching profile image: " + StringUtils.normalizeSpace(path));
 
 		InputStream inputStream = null;
 		OutputStream outStream = null;
@@ -706,7 +705,7 @@ public class UserController {
 				// set to binary type if MIME mapping not found
 				mimeType = "application/octet-stream";
 			}
-			logger.info("MIME type: " + mimeType);
+			logger.info("MIME type: " + StringUtils.normalizeSpace(mimeType));
 
 			// Set content attributes for the response
 			response.setContentType(mimeType);
@@ -801,7 +800,7 @@ public class UserController {
 			}
 		}
 
-		logger.info("Username: " + username + " already exists. Try again.");
+		logger.info("Username: " + StringUtils.normalizeSpace(username) + " already exists. Try again.");
 		return true;
 	}
 
@@ -857,7 +856,7 @@ public class UserController {
 			if (oldImage != null) {
 				String extension = oldImage.substring(oldImage.lastIndexOf("."));
 
-				logger.info("Renaming profile image from " + oldImage + " to " + newUsername + extension);
+				logger.info("Renaming profile image from " + StringUtils.normalizeSpace(oldImage) + " to " + newUsername + extension);
 				String path = context.getRealPath("/resources/images") + File.separator;
 
 				File oldName = new File(path + oldImage);
