@@ -46,7 +46,7 @@ jobs:
             vid: ${{ secrets.VID }}
             vkey: ${{ secrets.VKEY }}
             file: "verademo.war" 
-            request_policy: "VeraDemo Policy"
+            request_policy: "Eds High + SCA with Grace Period"
             debug: 1
             fail_build: false
 
